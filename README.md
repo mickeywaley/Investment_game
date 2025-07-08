@@ -36,7 +36,7 @@ V1.7
 
 <img src="https://raw.githubusercontent.com/mickeywaley/Investment_game/refs/heads/main/01.png" alt="Mobile wallpaper"   />
 
-<img src="https://raw.githubusercontent.com/mickeywaley/Investment_game/refs/heads/main/03.png" alt="Mobile wallpaper"   />
+<img src="https://raw.githubusercontent.com/mickeywaley/Investment_game/refs/heads/main/02.png" alt="Mobile wallpaper"   />
 
 -----
 
