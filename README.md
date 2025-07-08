@@ -30,7 +30,13 @@ V1.7
 
 整体设计兼顾了记录管理的实用性和媒体浏览的便捷性，适合用于系统跟踪和管理骰子游戏相关任务。
 
+----
 
+## 界面截图
+
+<img src="https://raw.githubusercontent.com/mickeywaley/Investment_game/refs/heads/main/01.png" alt="Mobile wallpaper"   />
+
+<img src="https://raw.githubusercontent.com/mickeywaley/Investment_game/refs/heads/main/03.png" alt="Mobile wallpaper"   />
 
 -----
 
