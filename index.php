@@ -38,6 +38,8 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addRecord
     $taskDate = date('Y-m-d l');
     $taskName = $_POST['taskName'];
     $triggerExposure = isset($_POST['triggerExposure']) ? '是' : '否';
+    $taskNamePublic = isset($_POST['taskNamePublic']) ? '是' : '否';
+    $taskContentPublic = isset($_POST['taskContentPublic']) ? '是' : '否';
 
     $mediaFiles = [];
     if (!empty($_FILES['media']['name'])) {
@@ -58,7 +60,9 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addRecord
         'taskDate' => $taskDate,
         'taskName' => $taskName,
         'mediaFiles' => $mediaFiles,
-        'triggerExposure' => $triggerExposure
+        'triggerExposure' => $triggerExposure,
+        'taskNamePublic' => $taskNamePublic,
+        'taskContentPublic' => $taskContentPublic
     ];
 
     $records = json_decode(file_get_contents($dbFile), true);
@@ -74,12 +78,16 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['editRecor
     $taskDate = $_POST['taskDate'];
     $taskName = $_POST['taskName'];
     $triggerExposure = isset($_POST['triggerExposure']) ? '是' : '否';
+    $taskNamePublic = isset($_POST['taskNamePublic']) ? '是' : '否';
+    $taskContentPublic = isset($_POST['taskContentPublic']) ? '是' : '否';
 
     $records = json_decode(file_get_contents($dbFile), true);
     $record = $records[$recordIndex];
     $record['taskDate'] = $taskDate;
     $record['taskName'] = $taskName;
     $record['triggerExposure'] = $triggerExposure;
+    $record['taskNamePublic'] = $taskNamePublic;
+    $record['taskContentPublic'] = $taskContentPublic;
 
     $mediaFiles = $record['mediaFiles'];
     if (!empty($_FILES['media']['name'])) {
@@ -98,6 +106,21 @@ if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['editRecor
     $record['mediaFiles'] = $mediaFiles;
 
     $records[$recordIndex] = $record;
+    file_put_contents($dbFile, json_encode($records));
+    header('Location: index.php');
+    exit;
+}
+
+// 处理批量设置公开状态逻辑
+if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['batchSetPublic'])) {
+    $taskNamePublic = $_POST['batchTaskNamePublic'];
+    $taskContentPublic = $_POST['batchTaskContentPublic'];
+
+    $records = json_decode(file_get_contents($dbFile), true);
+    foreach ($records as &$record) {
+        $record['taskNamePublic'] = $taskNamePublic;
+        $record['taskContentPublic'] = $taskContentPublic;
+    }
     file_put_contents($dbFile, json_encode($records));
     header('Location: index.php');
     exit;
@@ -159,660 +182,928 @@ $recentRecords = array_slice(array_reverse($records), 0, 20);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>骰子游戏记录表</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    
-    <!-- Tailwind CSS 配置 -->
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#4F46E5', // 主色调：靛蓝色
-                        secondary: '#10B981', // 辅助色：emerald
-                        accent: '#F59E0B', // 强调色：琥珀色
-                        dark: '#1F2937', // 深色
-                        light: '#F9FAFB', // 浅色
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans-serif'],
-                    },
-                }
-            }
+    <style>
+        /* 全局样式 */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f9f9f9;
         }
-    </script>
-    
-    <!-- 自定义工具类 -->
-    <style type="text/tailwindcss">
-        @layer utilities {
-            .content-auto {
-                content-visibility: auto;
+
+        h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+        }
+
+        h2::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 24px;
+            background-color: #3498db;
+            margin-right: 10px;
+            border-radius: 4px;
+        }
+
+        a {
+            color: #3498db;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        a:hover {
+            color: #2980b9;
+            text-decoration: underline;
+        }
+
+        /* 按钮样式 */
+        button,
+        input[type="submit"] {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover,
+        input[type="submit"]:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        button:disabled,
+        input[type="submit"]:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 表单样式 */
+        form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        form:hover {
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* 表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border-radius: 8px;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f5f5f5;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        tr {
+            transition: background-color 0.3s;
+        }
+
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        /* 媒体容器样式 */
+        .media-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .media-item {
+            width: calc(25% - 15px);
+            min-width: 180px;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .media-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .media-item img,
+        .media-item video {
+            width: 100%;
+            height: auto;
+            cursor: pointer;
+            display: block;
+            transition: filter 0.3s;
+        }
+
+        .media-item:hover img,
+        .media-item:hover video {
+            filter: brightness(1.05);
+        }
+
+        .media-item a {
+            display: block;
+            text-align: center;
+            padding: 8px 0;
+            background-color: #f5f5f5;
+            color: #e74c3c;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .media-item a:hover {
+            background-color: #e74c3c;
+            color: white;
+            text-decoration: none;
+        }
+
+        /* 灯箱样式 */
+        #lightbox {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: fadeIn 0.3s;
+            backdrop-filter: blur(5px);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        #lightbox-content {
+            max-width: 90%;
+            max-height: 85vh;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #lightbox-content img,
+        #lightbox-content video {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 6px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            animation: scaleIn 0.3s;
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .lightbox-nav {
+            position: fixed;
+            bottom: 40px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            z-index: 1001;
+            padding: 0 20px;
+        }
+
+        .lightbox-btn {
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            min-width: 120px;
+            backdrop-filter: blur(5px);
+        }
+
+        .lightbox-btn:hover {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #333;
+            transform: translateY(-2px);
+        }
+
+        .lightbox-btn:disabled {
+            background-color: rgba(100, 100, 100, 0.5);
+            cursor: not-allowed;
+            color: #ddd;
+            transform: none;
+        }
+
+        /* 任务索引样式 */
+        .task-index {
+            margin-bottom: 30px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+        }
+
+        .task-index:hover {
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        .task-index-header {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            transition: color 0.3s;
+        }
+
+        .task-index-header:hover {
+            color: #3498db;
+        }
+
+        .task-index-header::before {
+            content: '▶ ';
+            font-size: 14px;
+            margin-right: 8px;
+            color: #3498db;
+            transition: transform 0.3s;
+        }
+
+        .task-index-header.expanded::before {
+            transform: rotate(90deg);
+        }
+
+        .task-index-content {
+            display: none;
+            padding-left: 25px;
+            max-height: 200px;
+            overflow-y: auto;
+            transition: all 0.3s;
+        }
+
+        .task-index-content.expanded {
+            display: block;
+        }
+
+        .task-index-content ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .task-index-content li {
+            margin-bottom: 8px;
+        }
+
+        .task-index-content a {
+            display: inline-block;
+            padding: 2px 5px;
+            border-radius: 3px;
+            transition: all 0.3s;
+        }
+
+        .task-index-content a:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+            text-decoration: none;
+        }
+
+        /* 返回顶部按钮 */
+        .back-to-top {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #2ecc71;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 50px;
+            text-decoration: none;
+            z-index: 99;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+            opacity: 0.8;
+        }
+
+        .back-to-top:hover {
+            background-color: #27ae60;
+            text-decoration: none;
+            opacity: 1;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 批量设置区域 */
+        .batch-settings {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+        }
+
+        .batch-settings:hover {
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        .batch-settings h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+        }
+
+        .batch-settings h3::before {
+            content: '⚙️';
+            margin-right: 10px;
+        }
+
+        .batch-settings label {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        .batch-settings label:hover {
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+
+        .batch-settings input[type="radio"] {
+            margin-right: 5px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
             }
-            .card-shadow {
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+            .media-item {
+                width: calc(50% - 15px);
             }
-            .card-hover {
-                transition: transform 0.3s ease, box-shadow 0.3s ease;
+
+            .lightbox-nav {
+                gap: 10px;
+                bottom: 20px;
             }
-            .card-hover:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+            .lightbox-btn {
+                padding: 10px 15px;
+                font-size: 14px;
+                min-width: 100px;
             }
-            .aspect-9-6 {
-                aspect-ratio: 9/6;
+
+            table, thead, tbody, th, td, tr {
+                display: block;
             }
-            .lightbox-control {
-                @apply absolute top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300;
+
+            thead tr {
+                position: absolute;
+                top: -9999px;
+                left: -9999px;
             }
+
+            tr {
+                margin: 0 0 1rem 0;
+                border-radius: 8px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            }
+
+            td {
+                border: none;
+                border-bottom: 1px solid #eee;
+                position: relative;
+                padding-left: 50%;
+            }
+
+            td:before {
+                position: absolute;
+                left: 15px;
+                width: 45%;
+                padding-right: 10px;
+                white-space: nowrap;
+                font-weight: bold;
+                color: #2c3e50;
+            }
+
+            td:nth-of-type(1):before { content: "任务时间:"; }
+            td:nth-of-type(2):before { content: "任务名称:"; }
+            td:nth-of-type(3):before { content: "任务名称公开:"; }
+            td:nth-of-type(4):before { content: "任务内容公开:"; }
+            td:nth-of-type(5):before { content: "任务内容:"; }
+            td:nth-of-type(6):before { content: "触发曝光:"; }
+            td:nth-of-type(7):before { content: "操作:"; }
+        }
+
+        /* 错误消息 */
+        .error-message {
+            color: #e74c3c;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
         }
     </style>
 </head>
 
-<body class="bg-gray-50 font-sans text-dark">
-    <!-- 返回首页按钮 -->
-    <a href="#" id="back-to-top" class="fixed top-4 right-4 bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg shadow-lg transition-all duration-300 z-50 flex items-center">
-        <i class="fa fa-home mr-2"></i> 返回首页
-    </a>
+<body>
+    <a href="#" class="back-to-top">返回首页</a>
 
-    <div class="container mx-auto px-4 py-8 max-w-6xl">
-        <!-- 头部 -->
-        <header class="mb-8 text-center">
-            <h1 class="text-[clamp(2rem,5vw,3rem)] font-bold text-primary mb-2">骰子游戏记录表</h1>
-            <p class="text-gray-600 max-w-2xl mx-auto">记录和管理你的骰子游戏任务，支持图片和视频记录，轻松追踪游戏进度</p>
-        </header>
-
-        <!-- 登录区域 -->
-        <?php if (!$isAdmin): ?>
-            <div class="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6 mb-8 transform transition-all duration-500 hover:shadow-xl">
-                <h2 class="text-xl font-semibold mb-4 text-center text-dark">管理员登录</h2>
-                <?php if (isset($error)): ?>
-                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
-                        <i class="fa fa-exclamation-circle mr-2"></i><?php echo $error; ?>
-                    </div>
-                <?php endif; ?>
-                <form method="post" class="space-y-4">
-                    <div>
-                        <label for="username" class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
-                        <input type="text" id="username" name="username" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary transition duration-300">
-                    </div>
-                    <div>
-                        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密码</label>
-                        <input type="password" id="password" name="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary transition duration-300">
-                    </div>
-                    <button type="submit" name="login" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center">
-                        <i class="fa fa-sign-in mr-2"></i> 登录
-                    </button>
-                </form>
-            </div>
-        <?php else: ?>
-            <!-- 管理员操作区 -->
-            <div class="bg-white rounded-xl shadow-lg p-6 mb-8 transform transition-all duration-500 hover:shadow-xl">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold text-dark">添加新任务</h2>
-                    <a href="?logout" class="text-gray-600 hover:text-red-600 transition duration-300 flex items-center">
-                        <i class="fa fa-sign-out mr-1"></i> 退出登录
-                    </a>
-                </div>
-                <form method="post" enctype="multipart/form-data" class="space-y-4">
-                    <div>
-                        <label for="taskName" class="block text-sm font-medium text-gray-700 mb-1">任务名称</label>
-                        <textarea id="taskName" name="taskName" rows="3" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary transition duration-300" placeholder="请输入任务描述..."></textarea>
-                    </div>
-                    <div>
-                        <label for="media" class="block text-sm font-medium text-gray-700 mb-1">任务内容（图片或视频）</label>
-                        <input type="file" id="media" name="media[]" multiple class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary transition duration-300">
-                        <p class="text-xs text-gray-500 mt-1">支持上传多张图片或视频</p>
-                    </div>
-                    <div class="flex items-center">
-                        <input type="checkbox" id="triggerExposure" name="triggerExposure" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
-                        <label for="triggerExposure" class="ml-2 block text-sm text-gray-700">触发曝光</label>
-                    </div>
-                    <button type="submit" name="addRecord" class="bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center">
-                        <i class="fa fa-plus-circle mr-2"></i> 添加记录
-                    </button>
-                </form>
-            </div>
-        <?php endif; ?>
-
-        <!-- 所有任务快捷索引 -->
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-8 transform transition-all duration-500 hover:shadow-xl">
-            <div class="flex justify-between items-center cursor-pointer" id="toggle-all-index">
-                <h2 class="text-xl font-semibold text-dark flex items-center">
-                    <i class="fa fa-list-ul mr-2 text-primary"></i> 所有任务快捷索引
-                    <span class="ml-2 text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
-                        <?php echo count($records); ?> 个任务
-                    </span>
-                </h2>
-                <i class="fa fa-chevron-down text-gray-500 transition-transform duration-300" id="index-chevron"></i>
-            </div>
-            <div class="mt-4 overflow-hidden transition-all duration-500 max-h-0" id="all-index-content">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <?php foreach ($records as $index => $record): ?>
-                        <a href="#record-<?php echo $index; ?>" class="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition duration-300 flex items-center">
-                            <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-3">
-                                <?php echo $index + 1; ?>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="text-sm font-medium text-gray-900 truncate">
-                                    <?php echo substr($record['taskName'], 0, 25); if (strlen($record['taskName']) > 25) echo '...'; ?>
-                                </div>
-                                <div class="text-xs text-gray-500">
-                                    <?php echo date('Y-m-d', strtotime($record['taskDate'])); ?>
-                                </div>
-                            </div>
-                            <i class="fa fa-angle-right text-gray-400"></i>
-                        </a>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
-
-        <!-- 最近的 20 条记录 -->
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-8 transform transition-all duration-500 hover:shadow-xl">
-            <h2 class="text-xl font-semibold text-dark mb-6">最近的 <?php echo min(20, count($records)); ?> 条记录</h2>
-            
-            <?php if (empty($recentRecords)): ?>
-                <div class="text-center py-12">
-                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                        <i class="fa fa-file-text-o text-gray-400 text-2xl"></i>
-                    </div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-2">暂无记录</h3>
-                    <p class="text-gray-500 max-w-md mx-auto">添加你的第一条骰子游戏记录，开始追踪你的游戏进度</p>
-                </div>
-            <?php else: ?>
-                <div class="space-y-6">
-                    <?php foreach ($recentRecords as $index => $record): ?>
-                        <?php $originalIndex = count($records) - 1 - $index; ?>
-                        <div id="record-<?php echo $originalIndex; ?>" class="border border-gray-200 rounded-xl overflow-hidden transition-all duration-500 hover:border-primary/30 card-shadow card-hover">
-                            <div class="p-5">
-                                <div class="flex justify-between items-start mb-4">
-                                    <div>
-                                        <h3 class="text-lg font-semibold text-gray-900">
-                                            任务 <?php echo $originalIndex + 1; ?>
-                                            <span class="ml-2 text-xs font-normal bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
-                                                <?php echo date('Y-m-d', strtotime($record['taskDate'])); ?>
-                                            </span>
-                                        </h3>
-                                        <p class="text-sm text-gray-500 mt-1">
-                                            <?php echo $record['taskDate']; ?>
-                                        </p>
-                                    </div>
-                                    <div class="flex items-center">
-                                        <?php if ($record['triggerExposure'] === '是'): ?>
-                                            <span class="bg-accent/10 text-accent text-xs font-medium px-2.5 py-0.5 rounded">
-                                                触发曝光
-                                            </span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                
-                                <div class="mb-4">
-                                    <?php if ($isAdmin): ?>
-                                        <form method="post" enctype="multipart/form-data" class="space-y-4">
-                                            <input type="hidden" name="recordIndex" value="<?php echo $originalIndex; ?>">
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-700 mb-1">任务时间</label>
-                                                <input type="text" name="taskDate" value="<?php echo $record['taskDate']; ?>" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
-                                            </div>
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-700 mb-1">任务名称</label>
-                                                <textarea name="taskName" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"><?php echo $record['taskName']; ?></textarea>
-                                            </div>
-                                    <?php else: ?>
-                                        <h4 class="text-base font-medium text-gray-900 mb-2">任务详情</h4>
-                                        <div class="prose prose-sm max-w-none text-gray-700">
-                                            <?php echo nl2br(htmlspecialchars($record['taskName'])); ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                
-                                <?php if ($isAdmin && !empty($record['mediaFiles'])): ?>
-                                    <div class="mb-6">
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">现有媒体</label>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                            <?php foreach ($record['mediaFiles'] as $mediaIndex => $mediaFile): ?>
-                                                <div class="bg-white rounded-lg overflow-hidden shadow-sm">
-                                                    <?php
-                                                    $fileExtension = pathinfo($mediaFile, PATHINFO_EXTENSION);
-                                                    if (in_array(strtolower($fileExtension), ['jpg', 'jpeg', 'png', 'gif'])):
-                                                    ?>
-                                                        <div class="cursor-pointer aspect-9-6 overflow-hidden" onclick="openLightbox('<?php echo $mediaFile; ?>', 'image', <?php echo $originalIndex; ?>, <?php echo $mediaIndex; ?>)">
-                                                            <img src="<?php echo $mediaFile; ?>" alt="任务媒体" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300">
-                                                        </div>
-                                                    <?php elseif (in_array(strtolower($fileExtension), ['mp4', 'webm', 'ogg'])): ?>
-                                                        <div class="cursor-pointer aspect-9-6 overflow-hidden relative" onclick="openLightbox('<?php echo $mediaFile; ?>', 'video', <?php echo $originalIndex; ?>, <?php echo $mediaIndex; ?>)">
-                                                            <img src="https://picsum.photos/seed/video<?php echo $mediaIndex; ?>/400/300" alt="视频封面" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300">
-                                                            <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
-                                                                <div class="w-12 h-12 rounded-full bg-white bg-opacity-80 flex items-center justify-center">
-                                                                    <i class="fa fa-play text-primary text-xl"></i>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    <?php endif; ?>
-                                                    <div class="p-2 flex justify-between items-center">
-                                                        <span class="text-xs text-gray-500">
-                                                            <?php echo pathinfo($mediaFile, PATHINFO_BASENAME); ?>
-                                                        </span>
-                                                        <button type="button" onclick="deleteMedia(<?php echo $originalIndex; ?>, <?php echo $mediaIndex; ?>)" class="text-red-500 hover:text-red-700 transition-colors duration-300">
-                                                            <i class="fa fa-trash"></i> 删除
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-                                
-                                <?php if ($isAdmin): ?>
-                                    <div class="mb-4">
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">添加更多媒体</label>
-                                        <input type="file" name="media[]" multiple class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
-                                    </div>
-                                    
-                                    <div class="flex items-center mb-4">
-                                        <input type="checkbox" id="triggerExposure-<?php echo $originalIndex; ?>" name="triggerExposure" 
-                                            <?php echo $record['triggerExposure'] === '是' ? 'checked' : ''; ?>
-                                            class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
-                                        <label for="triggerExposure-<?php echo $originalIndex; ?>" class="ml-2 block text-sm text-gray-700">触发曝光</label>
-                                    </div>
-                                    
-                                    <div class="flex flex-wrap gap-2">
-                                        <button type="submit" name="editRecord" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center">
-                                            <i class="fa fa-save mr-2"></i> 保存修改
-                                        </button>
-                                        <button type="button" onclick="deleteRecord(<?php echo $originalIndex; ?>)" class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center">
-                                            <i class="fa fa-trash mr-2"></i> 删除任务
-                                        </button>
-                                    </div>
-                                <?php else: ?>
-                                    <?php if (!empty($record['mediaFiles'])): ?>
-                                        <h4 class="text-base font-medium text-gray-900 mb-2">任务媒体</h4>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                            <?php foreach ($record['mediaFiles'] as $mediaIndex => $mediaFile): ?>
-                                                <?php
-                                                $fileExtension = pathinfo($mediaFile, PATHINFO_EXTENSION);
-                                                if (in_array(strtolower($fileExtension), ['jpg', 'jpeg', 'png', 'gif'])):
-                                                ?>
-                                                    <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer" onclick="openLightbox('<?php echo $mediaFile; ?>', 'image', <?php echo $originalIndex; ?>, <?php echo $mediaIndex; ?>)">
-                                                        <div class="aspect-9-6 overflow-hidden">
-                                                            <img src="<?php echo $mediaFile; ?>" alt="任务媒体" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300">
-                                                        </div>
-                                                        <div class="p-2">
-                                                            <span class="text-xs text-gray-500">
-                                                                <?php echo pathinfo($mediaFile, PATHINFO_BASENAME); ?>
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                <?php elseif (in_array(strtolower($fileExtension), ['mp4', 'webm', 'ogg'])): ?>
-                                                    <div class="bg-white rounded-lg overflow-hidden shadow-sm cursor-pointer" onclick="openLightbox('<?php echo $mediaFile; ?>', 'video', <?php echo $originalIndex; ?>, <?php echo $mediaIndex; ?>)">
-                                                        <div class="aspect-9-6 overflow-hidden relative">
-                                                            <img src="https://picsum.photos/seed/video<?php echo $mediaIndex; ?>/400/300" alt="视频封面" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300">
-                                                            <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
-                                                                <div class="w-12 h-12 rounded-full bg-white bg-opacity-80 flex items-center justify-center">
-                                                                    <i class="fa fa-play text-primary text-xl"></i>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div class="p-2">
-                                                            <span class="text-xs text-gray-500">
-                                                                <?php echo pathinfo($mediaFile, PATHINFO_BASENAME); ?>
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                <?php endif; ?>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    <?php endif; ?>
-                                <?php endif; ?>
-                                
-                                <?php if ($isAdmin): ?>
-                                    </form>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
+    <?php if (!$isAdmin): ?>
+        <div class="error-message">
+            <?php if (isset($error)): ?>
+                <?php echo $error; ?>
             <?php endif; ?>
         </div>
-    </div>
-
-    <!-- 灯箱视图 -->
-    <div id="lightbox" class="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
-        <button id="close-lightbox" class="absolute top-6 right-6 text-white text-3xl hover:text-gray-300 transition-colors duration-300">
-            <i class="fa fa-times"></i>
-        </button>
-        
-        <div id="lightbox-controls" class="absolute bottom-6 left-0 right-0 flex justify-center items-center space-x-4 flex-wrap">
-            <button id="prev-task" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center transition-all duration-300">
-                上一个任务 <i class="fa fa-arrow-left ml-2"></i>
-            </button>
-            <button id="prev-media" class="bg-black/50 hover:bg-black/70 text-white px-4 py-2 rounded-lg flex items-center transition-all duration-300">
-                <i class="fa fa-chevron-left mr-2"></i> 上一张
-            </button>
-            <span id="lightbox-title" class="text-white text-lg font-medium max-w-md truncate my-2"></span>
-            <button id="next-media" class="bg-black/50 hover:bg-black/70 text-white px-4 py-2 rounded-lg flex items-center transition-all duration-300">
-                下一张 <i class="fa fa-chevron-right ml-2"></i>
-            </button>
-            <button id="next-task" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center transition-all duration-300">
-                <i class="fa fa-arrow-right mr-2"></i> 下一个任务
-            </button>
+        <h2>管理员登录</h2>
+        <form method="post">
+            <div>
+                <label for="username">用户名:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div>
+                <label for="password">密码:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <input type="submit" name="login" value="登录">
+        </form>
+    <?php else: ?>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>欢迎，管理员！</h2>
+            <a href="?logout" style="color: #e74c3c;">退出登录</a>
         </div>
         
-        <button id="prev-button" class="lightbox-control left-4">
-            <i class="fa fa-chevron-left text-xl"></i>
-        </button>
-        <button id="next-button" class="lightbox-control right-4">
-            <i class="fa fa-chevron-right text-xl"></i>
-        </button>
-        
-        <div class="max-w-6xl w-full max-h-[90vh] flex items-center justify-center">
-            <div id="lightbox-content" class="w-full h-full flex items-center justify-center">
-                <!-- 内容将通过JavaScript动态添加 -->
+        <!-- 批量设置公开状态 -->
+        <div class="batch-settings">
+            <h3>批量设置公开状态</h3>
+            <form method="post">
+                <div>
+                    <label>
+                        <input type="radio" name="batchTaskNamePublic" value="是" checked>
+                        任务名称全部公开
+                    </label>
+                    <label>
+                        <input type="radio" name="batchTaskNamePublic" value="否">
+                        任务名称全部隐藏
+                    </label>
+                </div>
+                <div>
+                    <label>
+                        <input type="radio" name="batchTaskContentPublic" value="是" checked>
+                        任务内容全部公开
+                    </label>
+                    <label>
+                        <input type="radio" name="batchTaskContentPublic" value="否">
+                        任务内容全部隐藏
+                    </label>
+                </div>
+                <input type="submit" name="batchSetPublic" value="批量设置">
+            </form>
+        </div>
+
+        <h2>添加新记录</h2>
+        <form method="post" enctype="multipart/form-data">
+            <div>
+                <label for="taskName">任务名称:</label>
+                <textarea id="taskName" name="taskName" rows="4" cols="50" required></textarea>
             </div>
+            <div>
+                <label for="media">任务内容（图片或视频）:</label>
+                <input type="file" id="media" name="media[]" multiple>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" id="triggerExposure" name="triggerExposure">
+                    触发曝光
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" id="taskNamePublic" name="taskNamePublic" checked>
+                    任务名称公开
+                </label>
+            </div>
+            <div>
+                <label>
+                    <input type="checkbox" id="taskContentPublic" name="taskContentPublic" checked>
+                    任务内容公开
+                </label>
+            </div>
+            <input type="submit" name="addRecord" value="添加记录">
+        </form>
+    <?php endif; ?>
+
+    <h2 class="task-index-header" id="toggle-all-index">所有任务快捷索引</h2>
+    <div class="task-index-content" id="all-index-content">
+        <ul>
+            <?php foreach ($records as $index => $record): ?>
+                <?php if ($isAdmin || $record['taskNamePublic'] === '是'): ?>
+                    <li><a href="#record-<?php echo $index; ?>">任务 <?php echo $index + 1; ?>: <?php echo date('Y-m-d', strtotime($record['taskDate'])); ?> - <?php echo $isAdmin || $record['taskNamePublic'] === '是' ? substr($record['taskName'], 0, 30) : '【内容隐藏】'; if (strlen($record['taskName']) > 30) echo '...'; ?></a></li>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+
+    <h2>最近的 20 条记录</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>任务时间</th>
+                <th>任务名称</th>
+                <?php if ($isAdmin): ?>
+                    <th>任务名称公开</th>
+                    <th>任务内容公开</th>
+                <?php endif; ?>
+                <?php if ($isAdmin || (isset($record['taskContentPublic']) && $record['taskContentPublic'] === '是')): ?>
+                    <th>任务内容</th>
+                <?php endif; ?>
+                <th>触发曝光</th>
+                <?php if ($isAdmin): ?>
+                    <th>操作</th>
+                <?php endif; ?>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($recentRecords as $index => $record): ?>
+                <?php $originalIndex = count($records) - 1 - $index; ?>
+                <tr id="record-<?php echo $originalIndex; ?>">
+                    <td>
+                        <?php if ($isAdmin): ?>
+                            <input type="text" name="taskDate" value="<?php echo $record['taskDate']; ?>" required>
+                        <?php else: ?>
+                            <?php echo $record['taskDate']; ?>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php if ($isAdmin): ?>
+                            <form method="post" enctype="multipart/form-data">
+                                <input type="hidden" name="recordIndex" value="<?php echo $originalIndex; ?>">
+                                <textarea name="taskName" rows="4" cols="50"><?php echo $record['taskName']; ?></textarea>
+                        <?php else: ?>
+                            <?php echo $record['taskNamePublic'] === '是' ? nl2br($record['taskName']) : '【内容隐藏】'; ?>
+                        <?php endif; ?>
+                    </td>
+                    <?php if ($isAdmin): ?>
+                        <td>
+                            <input type="checkbox" name="taskNamePublic"
+                                <?php echo $record['taskNamePublic'] === '是' ? 'checked' : ''; ?>>
+                        </td>
+                        <td>
+                            <input type="checkbox" name="taskContentPublic"
+                                <?php echo $record['taskContentPublic'] === '是' ? 'checked' : ''; ?>>
+                        </td>
+                    <?php endif; ?>
+                    <?php if ($isAdmin || (isset($record['taskContentPublic']) && $record['taskContentPublic'] === '是')): ?>
+                        <td>
+                            <?php if ($isAdmin || $record['taskContentPublic'] === '是'): ?>
+                                <div class="media-container">
+                                    <?php foreach ($record['mediaFiles'] as $mediaIndex => $mediaFile): ?>
+                                        <?php
+                                        $fileExtension = pathinfo($mediaFile, PATHINFO_EXTENSION);
+                                        if (in_array(strtolower($fileExtension), ['jpg', 'jpeg', 'png', 'gif'])):
+                                            ?>
+                                            <div class="media-item">
+                                                <img src="<?php echo $mediaFile; ?>" alt="任务图片"
+                                                    onclick="openLightbox('<?php echo $mediaFile; ?>', 'image', <?php echo $originalIndex; ?>, <?php echo $mediaIndex; ?>)">
+                                                <?php if ($isAdmin): ?>
+                                                    <a href="#"
+                                                        onclick="deleteMedia(<?php echo $originalIndex; ?>, <?php echo $mediaIndex; ?>); return false;">删除</a>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php elseif (in_array(strtolower($fileExtension), ['mp4', 'webm', 'ogg'])): ?>
+                                            <div class="media-item">
+                                                <video controls onclick="openLightbox('<?php echo $mediaFile; ?>', 'video', <?php echo $originalIndex; ?>, <?php echo $mediaIndex; ?>)">
+                                                    <source src="<?php echo $mediaFile; ?>"
+                                                        type="video/<?php echo $fileExtension; ?>">
+                                                    你的浏览器不支持播放此视频。
+                                                </video>
+                                                <?php if ($isAdmin): ?>
+                                                    <a href="#"
+                                                        onclick="deleteMedia(<?php echo $originalIndex; ?>, <?php echo $mediaIndex; ?>); return false;">删除</a>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php if ($isAdmin): ?>
+                                    <div>
+                                        <label for="media">添加更多媒体:</label>
+                                        <input type="file" id="media" name="media[]" multiple>
+                                    </div>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <div style="color: #999; font-style: italic;">【内容隐藏】</div>
+                            <?php endif; ?>
+                        </td>
+                    <?php endif; ?>
+                    <td>
+                        <?php if ($isAdmin): ?>
+                            <input type="checkbox" name="triggerExposure"
+                                <?php echo $record['triggerExposure'] === '是' ? 'checked' : ''; ?>>
+                        <?php else: ?>
+                            <?php echo $record['triggerExposure']; ?>
+                        <?php endif; ?>
+                    </td>
+                    <?php if ($isAdmin): ?>
+                        <td>
+                            <input type="submit" name="editRecord" value="保存修改">
+                            </form>
+                            <a href="#" onclick="deleteRecord(<?php echo $originalIndex; ?>); return false;" style="color: #e74c3c;">删除任务</a>
+                        </td>
+                    <?php endif; ?>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+
+    <div id="lightbox" onclick="closeLightbox()">
+        <div id="lightbox-content"></div>
+        <div class="lightbox-nav">
+            <button class="lightbox-btn" id="prev-task" onclick="navigateTask(-1); event.stopPropagation();">上一个任务</button>
+            <button class="lightbox-btn" id="prev-media" onclick="navigateMedia(-1); event.stopPropagation();">上一张</button>
+            <button class="lightbox-btn" id="next-media" onclick="navigateMedia(1); event.stopPropagation();">下一张</button>
+            <button class="lightbox-btn" id="next-task" onclick="navigateTask(1); event.stopPropagation();">下一个任务</button>
         </div>
     </div>
 
     <script>
-        // 返回顶部按钮功能
+        // 存储当前查看的媒体信息
+        let currentRecordIndex = -1;
+        let currentMediaIndex = -1;
+        
+        // 初始化快捷索引状态
         document.addEventListener('DOMContentLoaded', function() {
-            const backToTopButton = document.getElementById('back-to-top');
-            
-            window.addEventListener('scroll', function() {
-                if (window.pageYOffset > 300) {
-                    backToTopButton.classList.add('opacity-100');
-                    backToTopButton.classList.remove('opacity-0');
-                } else {
-                    backToTopButton.classList.add('opacity-0');
-                    backToTopButton.classList.remove('opacity-100');
-                }
-            });
-            
-            backToTopButton.addEventListener('click', function(e) {
-                e.preventDefault();
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-            });
-            
-            // 初始化快捷索引折叠/展开功能
-            const toggleButton = document.getElementById('toggle-all-index');
+            const header = document.getElementById('toggle-all-index');
             const content = document.getElementById('all-index-content');
-            const chevron = document.getElementById('index-chevron');
             
-            toggleButton.addEventListener('click', function() {
-                if (content.style.maxHeight) {
-                    content.style.maxHeight = null;
-                    chevron.classList.remove('rotate-180');
-                } else {
-                    content.style.maxHeight = content.scrollHeight + 'px';
-                    chevron.classList.add('rotate-180');
-                }
+            header.addEventListener('click', function() {
+                content.classList.toggle('expanded');
+                header.classList.toggle('expanded');
             });
             
-            // 平滑滚动
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-                anchor.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    
-                    const targetId = this.getAttribute('href');
-                    if (targetId === '#') return;
-                    
-                    const targetElement = document.querySelector(targetId);
-                    if (targetElement) {
-                        targetElement.scrollIntoView({
-                            behavior: 'smooth'
-                        });
-                    }
+            // 为所有任务索引项添加动画效果
+            const taskLinks = document.querySelectorAll('.task-index-content a');
+            taskLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    // 添加点击效果
+                    e.target.classList.add('clicked');
+                    setTimeout(() => {
+                        e.target.classList.remove('clicked');
+                    }, 300);
                 });
+            });
+            
+            // 添加ESC键关闭灯箱的功能
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeLightbox();
+                }
             });
         });
 
-        // 当前查看的媒体信息
-        let currentRecordIndex = null;
-        let currentMediaIndex = null;
-        let allRecords = <?php echo json_encode($records); ?>;
-
-        // 打开灯箱
         function openLightbox(src, type, recordIndex, mediaIndex) {
+            // 保存当前查看的媒体位置信息
             currentRecordIndex = recordIndex;
             currentMediaIndex = mediaIndex;
             
             const lightbox = document.getElementById('lightbox');
             const lightboxContent = document.getElementById('lightbox-content');
-            const lightboxTitle = document.getElementById('lightbox-title');
             lightboxContent.innerHTML = '';
-            
-            // 设置任务名称
-            const taskName = allRecords[recordIndex]['taskName'];
-            lightboxTitle.textContent = taskName;
             
             if (type === 'image') {
                 const img = document.createElement('img');
                 img.src = src;
-                img.className = 'max-w-full max-h-[80vh] object-contain';
+                img.alt = '任务媒体内容';
+                img.onload = function() {
+                    // 图片加载完成后，确保图片完整显示
+                    updateLightboxContent();
+                };
                 lightboxContent.appendChild(img);
             } else if (type === 'video') {
                 const video = document.createElement('video');
                 video.src = src;
                 video.controls = true;
-                video.autoplay = true;
-                video.className = 'max-w-full max-h-[80vh]';
+                video.alt = '任务视频内容';
+                video.onloadedmetadata = function() {
+                    // 视频元数据加载完成后，确保视频完整显示
+                    updateLightboxContent();
+                };
                 lightboxContent.appendChild(video);
             }
             
-            // 更新按钮状态
-            updateLightboxButtons();
+            // 更新导航按钮状态
+            updateNavButtons();
             
-            lightbox.classList.remove('opacity-0', 'pointer-events-none');
-            document.body.style.overflow = 'hidden';
+            lightbox.style.display = 'flex';
+            // 窗口大小变化时重新调整图片显示
+            window.addEventListener('resize', updateLightboxContent);
         }
 
-        // 更新灯箱按钮状态
-        function updateLightboxButtons() {
-            const prevMediaButton = document.getElementById('prev-media');
-            const nextMediaButton = document.getElementById('next-media');
-            const prevTaskButton = document.getElementById('prev-task');
-            const nextTaskButton = document.getElementById('next-task');
+        function updateLightboxContent() {
+            const lightboxContent = document.getElementById('lightbox-content');
+            const mediaElement = lightboxContent.querySelector('img, video');
             
-            // 检查是否有上一张
-            if (currentMediaIndex > 0) {
-                prevMediaButton.removeAttribute('disabled');
-                prevMediaButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                prevMediaButton.setAttribute('disabled', 'true');
-                prevMediaButton.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-            
-            // 检查是否有下一张
-            if (currentMediaIndex < allRecords[currentRecordIndex]['mediaFiles'].length - 1) {
-                nextMediaButton.removeAttribute('disabled');
-                nextMediaButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                nextMediaButton.setAttribute('disabled', 'true');
-                nextMediaButton.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-            
-            // 检查是否有上一个任务
-            if (currentRecordIndex > 0) {
-                prevTaskButton.removeAttribute('disabled');
-                prevTaskButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                prevTaskButton.setAttribute('disabled', 'true');
-                prevTaskButton.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-            
-            // 检查是否有下一个任务
-            if (currentRecordIndex < allRecords.length - 1) {
-                nextTaskButton.removeAttribute('disabled');
-                nextTaskButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                nextTaskButton.setAttribute('disabled', 'true');
-                nextTaskButton.classList.add('opacity-50', 'cursor-not-allowed');
+            if (mediaElement) {
+                // 确保媒体元素完整显示在容器内
+                mediaElement.style.maxHeight = 'calc(100vh - 120px)';
             }
         }
 
-        // 上一张媒体
-        document.getElementById('prev-media').addEventListener('click', function() {
-            if (currentMediaIndex > 0) {
-                currentMediaIndex--;
-                const mediaFile = allRecords[currentRecordIndex]['mediaFiles'][currentMediaIndex];
-                const fileExtension = pathinfo(mediaFile, 'extension');
-                
-                if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExtension.toLowerCase())) {
-                    openLightbox(mediaFile, 'image', currentRecordIndex, currentMediaIndex);
-                } else if (['mp4', 'webm', 'ogg'].includes(fileExtension.toLowerCase())) {
-                    openLightbox(mediaFile, 'video', currentRecordIndex, currentMediaIndex);
-                }
-            }
-        });
-
-        // 下一张媒体
-        document.getElementById('next-media').addEventListener('click', function() {
-            if (currentMediaIndex < allRecords[currentRecordIndex]['mediaFiles'].length - 1) {
-                currentMediaIndex++;
-                const mediaFile = allRecords[currentRecordIndex]['mediaFiles'][currentMediaIndex];
-                const fileExtension = pathinfo(mediaFile, 'extension');
-                
-                if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExtension.toLowerCase())) {
-                    openLightbox(mediaFile, 'image', currentRecordIndex, currentMediaIndex);
-                } else if (['mp4', 'webm', 'ogg'].includes(fileExtension.toLowerCase())) {
-                    openLightbox(mediaFile, 'video', currentRecordIndex, currentMediaIndex);
-                }
-            }
-        });
-
-        // 上一个任务
-        document.getElementById('prev-task').addEventListener('click', function() {
-            if (currentRecordIndex > 0) {
-                currentRecordIndex--;
-                currentMediaIndex = 0;
-                
-                // 检查是否有媒体文件
-                if (allRecords[currentRecordIndex]['mediaFiles'].length > 0) {
-                    const mediaFile = allRecords[currentRecordIndex]['mediaFiles'][currentMediaIndex];
-                    const fileExtension = pathinfo(mediaFile, 'extension');
-                    
-                    if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExtension.toLowerCase())) {
-                        openLightbox(mediaFile, 'image', currentRecordIndex, currentMediaIndex);
-                    } else if (['mp4', 'webm', 'ogg'].includes(fileExtension.toLowerCase())) {
-                        openLightbox(mediaFile, 'video', currentRecordIndex, currentMediaIndex);
-                    }
-                }
-            }
-        });
-
-        // 下一个任务
-        document.getElementById('next-task').addEventListener('click', function() {
-            if (currentRecordIndex < allRecords.length - 1) {
-                currentRecordIndex++;
-                currentMediaIndex = 0;
-                
-                // 检查是否有媒体文件
-                if (allRecords[currentRecordIndex]['mediaFiles'].length > 0) {
-                    const mediaFile = allRecords[currentRecordIndex]['mediaFiles'][currentMediaIndex];
-                    const fileExtension = pathinfo(mediaFile, 'extension');
-                    
-                    if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExtension.toLowerCase())) {
-                        openLightbox(mediaFile, 'image', currentRecordIndex, currentMediaIndex);
-                    } else if (['mp4', 'webm', 'ogg'].includes(fileExtension.toLowerCase())) {
-                        openLightbox(mediaFile, 'video', currentRecordIndex, currentMediaIndex);
-                    }
-                }
-            }
-        });
-
-        // 左侧快捷按钮（上一张）
-        document.getElementById('prev-button').addEventListener('click', function() {
-            document.getElementById('prev-media').click();
-        });
-
-        // 右侧快捷按钮（下一张）
-        document.getElementById('next-button').addEventListener('click', function() {
-            document.getElementById('next-media').click();
-        });
-
-        // 关闭灯箱
-        document.getElementById('close-lightbox').addEventListener('click', function() {
+        function closeLightbox() {
             const lightbox = document.getElementById('lightbox');
-            lightbox.classList.add('opacity-0', 'pointer-events-none');
-            document.body.style.overflow = '';
-            
-            // 停止所有视频
-            const videos = document.querySelectorAll('video');
-            videos.forEach(video => {
-                video.pause();
-            });
-        });
+            lightbox.style.display = 'none';
+            // 重置当前查看的媒体信息
+            currentRecordIndex = -1;
+            currentMediaIndex = -1;
+            // 移除窗口大小变化事件监听
+            window.removeEventListener('resize', updateLightboxContent);
+        }
 
-        // 点击灯箱背景关闭
-        document.getElementById('lightbox').addEventListener('click', function(e) {
-            if (e.target === this) {
-                const lightbox = document.getElementById('lightbox');
-                lightbox.classList.add('opacity-0', 'pointer-events-none');
-                document.body.style.overflow = '';
+        function updateNavButtons() {
+            // 获取当前任务的媒体文件数量
+            const mediaCounts = <?php echo json_encode(array_map(function($record) { return count($record['mediaFiles']); }, $records)); ?>;
+            const mediaCount = mediaCounts[currentRecordIndex] || 0;
+            // 获取总任务数量
+            const totalRecords = <?php echo count($records); ?>;
+            
+            // 更新上一张/下一张按钮状态
+            document.getElementById('prev-media').disabled = currentMediaIndex <= 0 || mediaCount <= 1;
+            document.getElementById('next-media').disabled = currentMediaIndex >= mediaCount - 1 || mediaCount <= 1;
+            
+            // 更新上一个/下一个任务按钮状态
+            document.getElementById('prev-task').disabled = currentRecordIndex <= 0;
+            document.getElementById('next-task').disabled = currentRecordIndex >= totalRecords - 1;
+        }
+
+        function navigateMedia(direction) {
+            if (currentRecordIndex === -1 || currentMediaIndex === -1) return;
+            
+            // 获取当前任务的媒体文件信息
+            const mediaFiles = <?php echo json_encode(array_map(function($record) { 
+                return array_map(function($file) {
+                    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                    return [
+                        'path' => $file,
+                        'type' => in_array($ext, ['jpg', 'jpeg', 'png', 'gif']) ? 'image' : 'video',
+                        'ext' => $ext
+                    ];
+                }, $record['mediaFiles']);
+            }, $records)); ?>[currentRecordIndex] || [];
+            
+            // 计算新的媒体索引
+            const newMediaIndex = currentMediaIndex + direction;
+            
+            // 检查索引是否有效
+            if (newMediaIndex >= 0 && newMediaIndex < mediaFiles.length) {
+                const newMedia = mediaFiles[newMediaIndex];
+                openLightbox(newMedia.path, newMedia.type, currentRecordIndex, newMediaIndex);
+            }
+        }
+
+        function navigateTask(direction) {
+            if (currentRecordIndex === -1) return;
+            
+            // 计算新的任务索引
+            const newRecordIndex = currentRecordIndex + direction;
+            const totalRecords = <?php echo count($records); ?>;
+            
+            // 检查任务索引是否有效
+            if (newRecordIndex >= 0 && newRecordIndex < totalRecords) {
+                // 获取新任务的媒体文件信息
+                const mediaFiles = <?php echo json_encode(array_map(function($record) { 
+                    return array_map(function($file) {
+                        $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                        return [
+                            'path' => $file,
+                            'type' => in_array($ext, ['jpg', 'jpeg', 'png', 'gif']) ? 'image' : 'video'
+                        ];
+                    }, $record['mediaFiles']);
+                }, $records)); ?>[newRecordIndex] || [];
                 
-                // 停止所有视频
-                const videos = document.querySelectorAll('video');
-                videos.forEach(video => {
-                    video.pause();
-                });
+                // 如果新任务有媒体文件，显示第一个媒体
+                if (mediaFiles.length > 0) {
+                    openLightbox(mediaFiles[0].path, mediaFiles[0].type, newRecordIndex, 0);
+                }
             }
-        });
+        }
 
-        // 键盘导航
-        document.addEventListener('keydown', function(e) {
-            // 仅在灯箱打开时响应键盘事件
-            if (document.getElementById('lightbox').classList.contains('opacity-0')) {
-                return;
-            }
-            
-            switch(e.key) {
-                case 'ArrowLeft':
-                    document.getElementById('prev-media').click();
-                    e.preventDefault();
-                    break;
-                case 'ArrowRight':
-                    document.getElementById('next-media').click();
-                    e.preventDefault();
-                    break;
-                case 'ArrowUp':
-                    document.getElementById('prev-task').click();
-                    e.preventDefault();
-                    break;
-                case 'ArrowDown':
-                    document.getElementById('next-task').click();
-                    e.preventDefault();
-                    break;
-                case 'Escape':
-                    document.getElementById('close-lightbox').click();
-                    e.preventDefault();
-                    break;
-            }
-        });
-
-        // 删除媒体文件
         function deleteMedia(recordIndex, mediaIndex) {
-            if (confirm('确定要删除此媒体文件吗？此操作不可撤销。')) {
+            if (confirm('确定要删除此媒体文件吗？')) {
                 window.location.href = `index.php?deleteMedia=${mediaIndex}&recordIndex=${recordIndex}`;
             }
         }
 
-        // 删除任务
         function deleteRecord(recordIndex) {
-            if (confirm('确定要删除此任务吗？此操作将删除所有相关媒体文件，且不可撤销。')) {
+            if (confirm('确定要删除此任务吗？此操作将删除所有相关媒体文件！')) {
                 window.location.href = `index.php?deleteRecord=${recordIndex}`;
             }
         }
 
-        // 辅助函数：获取文件扩展名
-        function pathinfo(path, option) {
-            if (option === 'extension') {
-                return path.split('.').pop().toLowerCase();
+        // 返回首页按钮功能
+        document.querySelector('.back-to-top').addEventListener('click', function(e) {
+            e.preventDefault();
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+
+        // 按ESC键关闭lightbox
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeLightbox();
             }
-            return '';
-        }
+        });
     </script>
 </body>
 
-</html>
+</html>    
